@@ -1,0 +1,128 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Smart Image Processing Pipeline using S3, Lambda, Step Functions, Rekognition, and DynamoDB
+
+Globals:
+  Function:
+    Timeout: 10
+    Runtime: python3.11
+    MemorySize: 128
+    Architectures:
+      - x86_64
+
+Resources:
+
+  ## S3 Bucket for uploads
+  UploadBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: s3:ObjectCreated:*
+            Function: !GetAtt TriggerStepFunction.Arn
+
+  ## SNS Topic for user notifications
+  NotifyTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: ImagePipelineNotification
+
+  ## DynamoDB Table
+  ImageMetadataTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: ImageMetadata
+      AttributeDefinitions:
+        - AttributeName: imageId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: imageId
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+  ## Lambda: Trigger Step Function
+  TriggerStepFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: triggerStepFunction.lambda_handler
+      CodeUri: ../lambdas/
+      Events:
+        S3Upload:
+          Type: S3
+          Properties:
+            Bucket: !Ref UploadBucket
+            Events: s3:ObjectCreated:*
+      Policies:
+        - StepFunctionsExecutionPolicy:
+            StateMachineName: ImageProcessingStateMachine
+
+  ## Lambda: Resize Image
+  ResizeImage:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: resizeImage.lambda_handler
+      CodeUri: ../lambdas/
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref UploadBucket
+        - S3WritePolicy:
+            BucketName: !Ref UploadBucket
+
+  ## Lambda: Rekognition Labels
+  RekognitionLabels:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: rekognitionLabels.lambda_handler
+      CodeUri: ../lambdas/
+      Policies:
+        - RekognitionDetectOnlyPolicy
+
+  ## Lambda: Store Metadata
+  StoreMetadata:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: storeMetadata.lambda_handler
+      CodeUri: ../lambdas/
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref ImageMetadataTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ImageMetadataTable
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt NotifyTopic.TopicName
+
+  ## Step Function definition
+  ImageProcessingStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      DefinitionUri: statemachine/imageProcessing.asl.json
+      Role: !GetAtt StepFunctionExecutionRole.Arn
+      Policies:
+        - LambdaInvokePolicy:
+            FunctionName: !Ref ResizeImage
+        - LambdaInvokePolicy:
+            FunctionName: !Ref RekognitionLabels
+        - LambdaInvokePolicy:
+            FunctionName: !Ref StoreMetadata
+
+  ## IAM Role for Step Function
+  StepFunctionExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeLambdas
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: "*"
