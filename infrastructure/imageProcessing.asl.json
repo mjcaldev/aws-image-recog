@@ -1,0 +1,38 @@
+{
+  "Comment": "Image processing pipeline: resize → analyze → save",
+  "StartAt": "ResizeImage",
+  "States": {
+    "ResizeImage": {
+      "Type": "Task",
+      "Resource": "${ResizeImage.Arn}",
+      "Next": "RekognitionLabels",
+      "Catch": [{
+        "ErrorEquals": ["States.ALL"],
+        "Next": "FailState"
+      }]
+    },
+    "RekognitionLabels": {
+      "Type": "Task",
+      "Resource": "${RekognitionLabels.Arn}",
+      "Next": "StoreMetadata",
+      "Catch": [{
+        "ErrorEquals": ["States.ALL"],
+        "Next": "FailState"
+      }]
+    },
+    "StoreMetadata": {
+      "Type": "Task",
+      "Resource": "${StoreMetadata.Arn}",
+      "End": true,
+      "Catch": [{
+        "ErrorEquals": ["States.ALL"],
+        "Next": "FailState"
+      }]
+    },
+    "FailState": {
+      "Type": "Fail",
+      "Error": "WorkflowFailed",
+      "Cause": "A step failed in the image processing pipeline"
+    }
+  }
+}
