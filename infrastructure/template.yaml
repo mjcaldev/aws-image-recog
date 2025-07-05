@@ -9,6 +9,11 @@ Globals:
     MemorySize: 128
     Architectures:
       - x86_64
+  Api:
+    Cors:
+      AllowMethods: "'POST,OPTIONS'"
+      AllowHeaders: "'Content-Type'"
+      AllowOrigin: "'*'"
 
 Resources:
 
@@ -20,6 +25,15 @@ Resources:
         LambdaConfigurations:
           - Event: s3:ObjectCreated:*
             Function: !GetAtt TriggerStepFunction.Arn
+            
+  ImageApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      Cors:
+        AllowMethods: "'POST,OPTIONS'"
+        AllowHeaders: "'Content-Type'"
+        AllowOrigin: "'*'"
 
   ## SNS Topic for user notifications
   NotifyTopic:
@@ -52,12 +66,22 @@ Resources:
           Properties:
             Bucket: !Ref UploadBucket
             Events: s3:ObjectCreated:*
+        HttpUpload:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ImageApi
+            Path: /upload
+            Method: POST
       Environment:
         Variables:
           STATE_MACHINE_ARN: !Ref ImageProcessingStateMachine
+          UPLOAD_BUCKET: !Ref UploadBucket
       Policies:
         - StepFunctionsExecutionPolicy:
             StateMachineName: ImageProcessingStateMachine
+    DependsOn:
+      - UploadBucket
+      - ImageApi
 
   ## Lambda: Resize Image
   ResizeImage:
