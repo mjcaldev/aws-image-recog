@@ -46,7 +46,7 @@ Client → S3 Bucket (Upload Trigger)
 │ └─────────┘ └───────────────┘ └──────────┘  │
 └─────────────────────────────────────────────┘
 
-/image-pipeline-app
+/aws-image-recog app
 │
 ├── /lambdas
 │   ├── triggerStepFunction.py
@@ -56,6 +56,7 @@ Client → S3 Bucket (Upload Trigger)
 │
 ├── /infrastructure
 │   └── template.yaml   # AWS SAM or CloudFormation
+│   └── imageProcessing.asl.json 
 │
 ├── /frontend (optional)
 │   └── upload.html or React app

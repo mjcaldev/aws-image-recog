@@ -4,7 +4,11 @@
   "States": {
     "ResizeImage": {
       "Type": "Task",
-      "Resource": "${ResizeImage.Arn}",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "ResizeImage",
+        "Payload.$": "$"
+      },
       "Next": "RekognitionLabels",
       "Catch": [{
         "ErrorEquals": ["States.ALL"],
@@ -13,7 +17,11 @@
     },
     "RekognitionLabels": {
       "Type": "Task",
-      "Resource": "${RekognitionLabels.Arn}",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "RekognitionLabels",
+        "Payload.$": "$"
+      },
       "Next": "StoreMetadata",
       "Catch": [{
         "ErrorEquals": ["States.ALL"],
@@ -22,7 +30,11 @@
     },
     "StoreMetadata": {
       "Type": "Task",
-      "Resource": "${StoreMetadata.Arn}",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "StoreMetadata",
+        "Payload.$": "$"
+      },
       "End": true,
       "Catch": [{
         "ErrorEquals": ["States.ALL"],

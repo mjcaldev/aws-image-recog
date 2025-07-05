@@ -78,7 +78,12 @@ Resources:
       Handler: rekognitionLabels.lambda_handler
       CodeUri: ../lambdas/
       Policies:
-        - RekognitionDetectOnlyPolicy
+        - Statement:
+            - Effect: Allow
+              Action:
+                - rekognition:DetectLabels
+              Resource: "*"
+
 
   ## Lambda: Store Metadata
   StoreMetadata:
@@ -100,15 +105,8 @@ Resources:
   ImageProcessingStateMachine:
     Type: AWS::Serverless::StateMachine
     Properties:
-      DefinitionUri: statemachine/imageProcessing.asl.json
+      DefinitionUri: imageProcessing.asl.json
       Role: !GetAtt StepFunctionExecutionRole.Arn
-      Policies:
-        - LambdaInvokePolicy:
-            FunctionName: !Ref ResizeImage
-        - LambdaInvokePolicy:
-            FunctionName: !Ref RekognitionLabels
-        - LambdaInvokePolicy:
-            FunctionName: !Ref StoreMetadata
 
   ## IAM Role for Step Function
   StepFunctionExecutionRole:
