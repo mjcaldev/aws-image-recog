@@ -52,6 +52,9 @@ Resources:
           Properties:
             Bucket: !Ref UploadBucket
             Events: s3:ObjectCreated:*
+      Environment:
+        Variables:
+          STATE_MACHINE_ARN: !Ref ImageProcessingStateMachine
       Policies:
         - StepFunctionsExecutionPolicy:
             StateMachineName: ImageProcessingStateMachine
@@ -86,6 +89,7 @@ Resources:
       Environment:
         Variables:
           TABLE_NAME: !Ref ImageMetadataTable
+          TOPIC_ARN: !Ref NotifyTopic
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ImageMetadataTable
