@@ -15,7 +15,7 @@ function App() {
     formData.append('file', file);
 
     try {
-      const response = await fetch("https://<your-api-id>.execute-api.<region>.amazonaws.com/prod/upload", {
+      const response = await fetch("https://ktkkrv3a00.execute-api.us-east-1.amazonaws.com/Prod/upload", {
         method: 'POST',
         body: formData,
       });
