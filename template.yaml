@@ -24,8 +24,8 @@ Resources:
       NotificationConfiguration:
         LambdaConfigurations:
           - Event: s3:ObjectCreated:*
-            Function: !GetAtt TriggerStepFunction.Arn
-            
+            Function: !GetAtt TriggerStepFunctionFromS3.Arn
+
   ImageApi:
     Type: AWS::Serverless::Api
     Properties:
@@ -54,41 +54,52 @@ Resources:
           KeyType: HASH
       BillingMode: PAY_PER_REQUEST
 
-  ## Lambda: Trigger Step Function
-  TriggerStepFunction:
+  ## Lambda: Trigger Step Function S3
+  TriggerStepFunctionFromS3:
     Type: AWS::Serverless::Function
     Properties:
       Handler: triggerStepFunction.lambda_handler
-      CodeUri: ../lambdas/
+      CodeUri: lambdas
       Events:
         S3Upload:
           Type: S3
           Properties:
             Bucket: !Ref UploadBucket
             Events: s3:ObjectCreated:*
+      Environment:
+        Variables:
+          STATE_MACHINE_ARN: !Ref ImageProcessingStateMachine
+      Policies:
+        - StepFunctionsExecutionPolicy:
+            StateMachineName: ImageProcessingStateMachine
+
+  ## Lambda: Trigger Step Function API
+  TriggerStepFunctionFromApi:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: triggerStepFunction.lambda_handler
+      CodeUri: lambdas
+      Events:
         HttpUpload:
           Type: Api
           Properties:
             RestApiId: !Ref ImageApi
             Path: /upload
             Method: POST
-      Environment:
-        Variables:
-          STATE_MACHINE_ARN: !Ref ImageProcessingStateMachine
-          UPLOAD_BUCKET: !Ref UploadBucket
-      Policies:
-        - StepFunctionsExecutionPolicy:
-            StateMachineName: ImageProcessingStateMachine
-    DependsOn:
-      - UploadBucket
-      - ImageApi
+    Environment:
+      Variables:
+        STATE_MACHINE_ARN: !Ref ImageProcessingStateMachine
+        UPLOAD_BUCKET: !Ref UploadBucket
+    Policies:
+      - StepFunctionsExecutionPolicy:
+          StateMachineName: ImageProcessingStateMachine
 
   ## Lambda: Resize Image
   ResizeImage:
     Type: AWS::Serverless::Function
     Properties:
       Handler: resizeImage.lambda_handler
-      CodeUri: ../lambdas/
+      CodeUri: lambdas
       Policies:
         - S3ReadPolicy:
             BucketName: !Ref UploadBucket
@@ -100,7 +111,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: rekognitionLabels.lambda_handler
-      CodeUri: ../lambdas/
+      CodeUri: lambdas
       Policies:
         - Statement:
             - Effect: Allow
@@ -114,7 +125,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: storeMetadata.lambda_handler
-      CodeUri: ../lambdas/
+      CodeUri: lambdas
       Environment:
         Variables:
           TABLE_NAME: !Ref ImageMetadataTable
@@ -129,7 +140,7 @@ Resources:
   ImageProcessingStateMachine:
     Type: AWS::Serverless::StateMachine
     Properties:
-      DefinitionUri: imageProcessing.asl.json
+      DefinitionUri: infrastructure/imageProcessing.asl.json
       Role: !GetAtt StepFunctionExecutionRole.Arn
 
   ## IAM Role for Step Function

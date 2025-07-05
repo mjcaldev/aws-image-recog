@@ -15,7 +15,7 @@ STATE_MACHINE_ARN = os.environ.get("STATE_MACHINE_ARN")
 def lambda_handler(event, context):
     print("Event received:", json.dumps(event))
 
-    # ✅ API Gateway flow (POST /upload)
+    # API Gateway flow (POST /upload)
     if "body" in event and "headers" in event:
         try:
             body = base64.b64decode(event["body"])
