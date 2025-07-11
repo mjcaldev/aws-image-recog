@@ -163,3 +163,27 @@ Resources:
                 Action:
                   - lambda:InvokeFunction
                 Resource: "*"
+Outputs:
+  UploadBucketName:
+    Description: "S3 bucket for image uploads"
+    Value: !Ref UploadBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-UploadBucket"
+
+  ImageApiUploadEndpoint:
+    Description: "API Gateway endpoint for image uploads"
+    Value: !Sub "https://${ImageApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/upload"
+    Export:
+      Name: !Sub "${AWS::StackName}-UploadEndpoint"
+
+  StateMachineArn:
+    Description: "ARN of the Image Processing State Machine"
+    Value: !Ref ImageProcessingStateMachine
+    Export:
+      Name: !Sub "${AWS::StackName}-StateMachineArn"
+
+  ImageMetadataTableName:
+    Description: "DynamoDB table for storing image metadata"
+    Value: !Ref ImageMetadataTable
+    Export:
+      Name: !Sub "${AWS::StackName}-MetadataTable"

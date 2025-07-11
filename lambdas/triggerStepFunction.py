@@ -3,8 +3,8 @@ import boto3
 import os
 import uuid
 import base64
-import cgi
 from io import BytesIO
+from requests_toolbelt.multipart import decoder
 
 s3 = boto3.client("s3")
 stepfunctions = boto3.client("stepfunctions")
@@ -15,25 +15,46 @@ STATE_MACHINE_ARN = os.environ.get("STATE_MACHINE_ARN")
 def lambda_handler(event, context):
     print("Event received:", json.dumps(event))
 
-    # API Gateway flow (POST /upload)
+    # === API Gateway Flow ===
     if "body" in event and "headers" in event:
         try:
-            body = base64.b64decode(event["body"])
-            content_type = event["headers"].get("Content-Type") or event["headers"].get("content-type")
+            print("UPLOAD_BUCKET:", UPLOAD_BUCKET)
+            print("STATE_MACHINE_ARN:", STATE_MACHINE_ARN)
 
-            environ = {'REQUEST_METHOD': 'POST'}
-            headers = {'content-type': content_type}
-            fs = cgi.FieldStorage(fp=BytesIO(body), environ=environ, headers=headers)
+            headers = event.get("headers") or {}
+            content_type = headers.get("Content-Type") or headers.get("content-type")
+            print("Raw Content-Type:", content_type)
+            print("Headers received:", headers)
+            print("isBase64Encoded:", event.get("isBase64Encoded", False))
+            print("Body type:", type(event.get("body")))
 
-            file_item = fs['file']
-            file_bytes = file_item.file.read()
-            file_type = file_item.type or "image/jpeg"
+            if not content_type:
+                raise ValueError("Missing Content-Type header")
 
-            # Unique key for S3
+            if event.get("isBase64Encoded", False):
+                body = base64.b64decode(event["body"])
+            else:
+                body = event["body"].encode("utf-8")
+
+            multipart_data = decoder.MultipartDecoder(body, content_type)
+
+            file_bytes = None
+            file_type = "image/jpeg"
+
+            for part in multipart_data.parts:
+                content_disposition = part.headers.get(b"Content-Disposition", b"").decode(errors="ignore")
+                print("Part headers:", content_disposition)
+                if "filename=" in content_disposition:
+                    file_bytes = part.content
+                    file_type = part.headers.get(b"Content-Type", b"image/jpeg").decode()
+                    break
+
+            if not file_bytes:
+                raise ValueError("No file found in multipart upload")
+
             image_id = str(uuid.uuid4())
             s3_key = f"uploads/{image_id}.jpg"
 
-            # Upload to S3
             s3.put_object(
                 Bucket=UPLOAD_BUCKET,
                 Key=s3_key,
@@ -41,7 +62,6 @@ def lambda_handler(event, context):
                 ContentType=file_type
             )
 
-            # Start Step Function
             stepfunctions.start_execution(
                 stateMachineArn=STATE_MACHINE_ARN,
                 input=json.dumps({
@@ -65,36 +85,6 @@ def lambda_handler(event, context):
             return {
                 "statusCode": 500,
                 "headers": {"Access-Control-Allow-Origin": "*"},
-                "body": json.dumps({"error": str(e)})
-            }
-
-    # ✅ S3-triggered event (existing behavior)
-    elif "Records" in event and event["Records"][0]["eventSource"] == "aws:s3":
-        try:
-            record = event['Records'][0]
-            bucket = record['s3']['bucket']['name']
-            key = record['s3']['object']['key']
-
-            input_data = {
-                "bucket": bucket,
-                "key": key,
-                "imageId": key.split("/")[-1].split(".")[0]
-            }
-
-            stepfunctions.start_execution(
-                stateMachineArn=STATE_MACHINE_ARN,
-                input=json.dumps(input_data)
-            )
-
-            return {
-                "statusCode": 200,
-                "body": json.dumps("Step Function started from S3 event")
-            }
-
-        except Exception as e:
-            print("S3 event error:", str(e))
-            return {
-                "statusCode": 500,
                 "body": json.dumps({"error": str(e)})
             }
 
